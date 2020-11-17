@@ -1,0 +1,10 @@
+[package]
+name = "music_typer"
+version = "0.1.0"
+authors = ["marius david <mariusdavid@laposte.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = { git = "https://github.com/bevyengine/bevy.git", rev="7628f4a64e6f3eacfc4aad3bb6b3d54309722682" }

@@ -1,7 +1,12 @@
 #[macro_use]
 extern crate log;
 
-use bevy::{prelude::*, window::ReceivedCharacter, log::LogPlugin};
+use bevy::{
+    diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
+    log::LogPlugin,
+    prelude::*,
+    window::ReceivedCharacter,
+};
 use music_typer::PlayingMusic;
 
 static TEST_SONG: &str = r#"
@@ -49,10 +54,13 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_resource(OngoingMusic(None))
         .add_resource(Fonts::default())
+        .add_resource(OngoingMusicDisplaySetting::default())
         .add_startup_system(debug_spawn_ongoing_music.system())
         .add_system(print_char_event_system.system())
         .add_system(debug_log.system())
         .add_system(move_music_text_system.system())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(PrintDiagnosticsPlugin::default())
         .run();
 }
 
@@ -62,9 +70,7 @@ fn debug_spawn_ongoing_music(
     mut fonts: ResMut<Fonts>,
     asset_server: Res<AssetServer>,
 ) {
-
-    commands
-        .spawn(UiCameraBundle::default());
+    commands.spawn(UiCameraBundle::default());
     fonts.ongoing_music_font = Some(asset_server.load("fonts/FiraSans-Bold.ttf"));
     ongoing_music.0 = Some(PlayingMusic::new(TEST_SONG.to_string()));
     ongoing_music.spawn_text(commands, &*fonts);
@@ -72,7 +78,7 @@ fn debug_spawn_ongoing_music(
 
 #[derive(Default)]
 struct Fonts {
-    ongoing_music_font: Option<Handle<Font>>
+    ongoing_music_font: Option<Handle<Font>>,
 }
 
 struct OngoingMusic(Option<PlayingMusic>);
@@ -93,7 +99,10 @@ impl OngoingMusic {
                         },
                         text: Text {
                             value: line.to_string(),
-                            font: fonts.ongoing_music_font.clone().expect("tried to use unitialized music font"),
+                            font: fonts
+                                .ongoing_music_font
+                                .clone()
+                                .expect("tried to use unitialized music font"),
                             style: TextStyle {
                                 font_size: 64.0,
                                 color: Color::WHITE,
@@ -103,7 +112,7 @@ impl OngoingMusic {
                         ..Default::default()
                     })
                     .with(MusicDisplayedLine(line_count));
-            };
+            }
         };
     }
 }
@@ -130,20 +139,63 @@ fn debug_log(ongoing_music: Res<OngoingMusic>) {
         println!("{:?}", playing_music.get_typed_text());
         println!("{:?}", playing_music.correctness());
 
-        let typed_from_lyric = TEST_SONG.chars().take(playing_music.position_in_source_text()).collect::<String>();
+        let typed_from_lyric = TEST_SONG
+            .chars()
+            .take(playing_music.position_in_source_text())
+            .collect::<String>();
         println!("{}", typed_from_lyric);
     }
 }
 
+struct OngoingMusicDisplaySetting {
+    current_color: Color,
+    non_current_color: Color,
+    distance_between_line: f32,
+    current_y: f32,
+    top_displayed_line: usize,
+    bottom_displayed_line: usize,
+}
+
+impl Default for OngoingMusicDisplaySetting {
+    fn default() -> Self {
+        Self {
+            current_color: Color::RED,
+            non_current_color: Color::WHITE,
+            distance_between_line: 100.0,
+            current_y: 1080.0 / 2.0, //TODO: compute at start and update on restart
+            top_displayed_line: 3,
+            bottom_displayed_line: 3,
+        }
+    }
+}
+
+//TODO: only update what is required (put into multiple system and add an event ?)
 fn move_music_text_system(
     ongoing_music: Res<OngoingMusic>,
-    mut query: Query<(&MusicDisplayedLine, &mut Style)>
+    ongoing_music_setting: Res<OngoingMusicDisplaySetting>,
+    mut query: Query<(&MusicDisplayedLine, &mut Style, &mut Text, &mut Draw)>,
 ) {
     if let Some(playing_music) = &(*ongoing_music).0 {
-        let actual_line = playing_music.position_in_source_lines() as f32;
-        for (MusicDisplayedLine(line_count), mut style) in query.iter_mut() {
-            let difference = *line_count as f32 - actual_line;
-            style.position.top = Val::Px(difference * 100.0);
+        let actual_line = playing_music.position_in_source_lines();
+        for (MusicDisplayedLine(line_count), mut style, mut text, mut draw) in query.iter_mut() {
+            let difference_isize: isize = *line_count as isize - actual_line as isize;
+            if difference_isize > ongoing_music_setting.bottom_displayed_line as isize
+                || difference_isize < -(ongoing_music_setting.top_displayed_line as isize)
+            {
+                draw.is_visible = false;
+                continue;
+            };
+            draw.is_visible = true;
+            let difference_f32 = difference_isize as f32;
+            if *line_count == actual_line {
+                text.style.color = ongoing_music_setting.current_color;
+            } else {
+                text.style.color = ongoing_music_setting.non_current_color;
+            };
+            style.position.top = Val::Px(
+                difference_f32 * ongoing_music_setting.distance_between_line
+                    + ongoing_music_setting.current_y,
+            );
         }
     }
 }

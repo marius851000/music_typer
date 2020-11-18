@@ -7,7 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy.git", rev="7628f4a64e6f3eacfc4aad3bb6b3d54309722682" }
+#bevy = { git = "https://github.com/bevyengine/bevy.git", rev="7628f4a64e6f3eacfc4aad3bb6b3d54309722682" }
+bevy = { path = "/home/marius/learnbevy/bevy" }
+# contain a patch for optimising unvisible text
 log = "0.4.11"
 env_logger = "0.8.1"
-#TODO: use bevy_log

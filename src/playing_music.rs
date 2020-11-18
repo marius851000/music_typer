@@ -1,5 +1,5 @@
-use log::error;
 use crate::{DistanceIncremental, PositionIncremental};
+use log::error;
 
 pub struct PlayingMusic {
     music_text_lines: Vec<String>,
@@ -53,7 +53,7 @@ impl PlayingMusic {
                 map_transformed_to_source.push(position);
                 map_transformed_to_lines.push(line_count);
             }
-        };
+        }
         if this_line.len() != 0 {
             music_text_lines.push(this_line);
         };
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn test_playing_music_lines() {
         let playing_music = PlayingMusic::new("h\ne\n\nl\nlo".into());
-        let expected = ["h","e","", "l", "lo"];
+        let expected = ["h", "e", "", "l", "lo"];
         let _ = playing_music
             .lines()
             .iter()

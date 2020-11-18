@@ -10,20 +10,20 @@ struct IncrementalLevenshtein {
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum LevenshteinGoal {
     Distance,
-    Position
+    Position,
 }
 
 impl IncrementalLevenshtein {
     fn new(source: &str, goal: LevenshteinGoal) -> Self {
         let source_vec: Vec<char> = source.chars().collect();
-        let cache = (0..source_vec.len()+1).map(|x| x as u32).collect();
+        let cache = (0..source_vec.len() + 1).map(|x| x as u32).collect();
 
         Self {
             source: source_vec,
             cache_backup: Vec::new(),
             other: Vec::new(),
             cache,
-            goal
+            goal,
         }
     }
 
@@ -34,29 +34,40 @@ impl IncrementalLevenshtein {
             v1.min(v2.min(v3))
         };
         fn delta(x: char, y: char, goal: LevenshteinGoal) -> u32 {
-            if x == y { 0 } else { match goal {
-                LevenshteinGoal::Distance => 1,
-                LevenshteinGoal::Position => 3,
-            }}
+            if x == y {
+                0
+            } else {
+                match goal {
+                    LevenshteinGoal::Distance => 1,
+                    LevenshteinGoal::Position => 3,
+                }
+            }
         };
         self.other.push(source_char);
         self.cache[0] = self.other.len() as u32;
-        let mut lastdiag = (self.other.len()-1) as u32;
-        for y in 1..self.source.len()+1 {
+        let mut lastdiag = (self.other.len() - 1) as u32;
+        for y in 1..self.source.len() + 1 {
             let olddiag = self.cache[y];
             self.cache[y] = min3(
-                self.cache[y] + match self.goal {
-                    LevenshteinGoal::Distance => 1,
-                    LevenshteinGoal::Position => 1,
-                },
-                self.cache[y-1] + match self.goal {
-                    LevenshteinGoal::Distance => 1,
-                    LevenshteinGoal::Position => 0
-                },
-                lastdiag + delta(self.source[y-1], self.other[self.other.len()-1], self.goal)
+                self.cache[y]
+                    + match self.goal {
+                        LevenshteinGoal::Distance => 1,
+                        LevenshteinGoal::Position => 1,
+                    },
+                self.cache[y - 1]
+                    + match self.goal {
+                        LevenshteinGoal::Distance => 1,
+                        LevenshteinGoal::Position => 0,
+                    },
+                lastdiag
+                    + delta(
+                        self.source[y - 1],
+                        self.other[self.other.len() - 1],
+                        self.goal,
+                    ),
             );
             lastdiag = olddiag;
-        };
+        }
 
         let add_to_backup = if self.other.len() % 10 == 0 {
             Some(self.cache.clone())
@@ -83,31 +94,37 @@ impl IncrementalLevenshtein {
                 self.cache = backed_cache;
                 self.cache_backup.push(None);
                 cache_is_restored = true;
-                break
+                break;
             };
             chars_to_restore.push(self.other.pop().unwrap());
-        };
+        }
         if !cache_is_restored {
-            self.cache =  (0..self.source.len()+1).map(|x| x as u32).collect();
+            self.cache = (0..self.source.len() + 1).map(|x| x as u32).collect();
         };
         for chara in chars_to_restore.iter().rev() {
             self.add_other_char(*chara);
-        };
+        }
     }
 
     fn distance(&self) -> u32 {
         if self.goal != LevenshteinGoal::Distance {
-            panic!("a IncrementalLevenshtein made for {:?} was used for distance", self.goal);
+            panic!(
+                "a IncrementalLevenshtein made for {:?} was used for distance",
+                self.goal
+            );
         };
         self.cache[self.source.len()]
     }
 
     fn position(&self, precision: usize) -> usize {
         if self.goal != LevenshteinGoal::Position {
-            panic!("a IncrementalLevenshtein made for {:?} was used for position", self.goal)
+            panic!(
+                "a IncrementalLevenshtein made for {:?} was used for position",
+                self.goal
+            )
         };
         if self.other.len() <= precision as usize {
-            return self.other.len()
+            return self.other.len();
         }
         let mut iterator_over_reversed_cache = self.cache.iter().enumerate().rev();
         let mut similarity_start_at = 0;
@@ -120,7 +137,7 @@ impl IncrementalLevenshtein {
                         current_value = *this_value;
                     } else {
                         similarity_start_at = count;
-                        break
+                        break;
                     };
                 }
             }
@@ -131,13 +148,13 @@ impl IncrementalLevenshtein {
 }
 
 pub struct DistanceIncremental {
-    levenshtein: IncrementalLevenshtein
+    levenshtein: IncrementalLevenshtein,
 }
 
 impl DistanceIncremental {
     pub fn new(source: &str) -> Self {
         Self {
-            levenshtein: IncrementalLevenshtein::new(source, LevenshteinGoal::Distance)
+            levenshtein: IncrementalLevenshtein::new(source, LevenshteinGoal::Distance),
         }
     }
 
@@ -159,13 +176,13 @@ impl DistanceIncremental {
 }
 
 pub struct PositionIncremental {
-    levenshtein: IncrementalLevenshtein
+    levenshtein: IncrementalLevenshtein,
 }
 
 impl PositionIncremental {
     pub fn new(source: &str) -> Self {
         Self {
-            levenshtein: IncrementalLevenshtein::new(source, LevenshteinGoal::Position)
+            levenshtein: IncrementalLevenshtein::new(source, LevenshteinGoal::Position),
         }
     }
 
@@ -198,13 +215,12 @@ mod tests {
         assert_eq!(inc.distance(), 4);
         for chara in &['i', 'l', 'l', 'o'] {
             inc.add_other_char(*chara);
-        };
+        }
         assert_eq!(inc.distance(), 1);
         inc.add_other_char('u');
         assert_eq!(inc.distance(), 2);
         inc.pop_other_char();
         assert_eq!(inc.distance(), 1);
-
 
         let mut inc = DistanceIncremental::new("hi");
         inc.add_other_str("hi");
@@ -218,7 +234,7 @@ mod tests {
         for chara in test_text.chars() {
             test_score_at.push(inc.distance());
             inc.add_other_char(chara);
-        };
+        }
 
         for original_distance in test_score_at.iter().rev() {
             let original_distance = *original_distance;

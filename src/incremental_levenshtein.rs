@@ -7,7 +7,7 @@ struct IncrementalLevenshtein {
     goal: LevenshteinGoal,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 enum LevenshteinGoal {
     Distance,
     Position
@@ -33,8 +33,11 @@ impl IncrementalLevenshtein {
         fn min3(v1: u32, v2: u32, v3: u32) -> u32 {
             v1.min(v2.min(v3))
         };
-        fn delta(x: char, y: char) -> u32 {
-            if x == y { 0 } else { 1 }
+        fn delta(x: char, y: char, goal: LevenshteinGoal) -> u32 {
+            if x == y { 0 } else { match goal {
+                LevenshteinGoal::Distance => 1,
+                LevenshteinGoal::Position => 3,
+            }}
         };
         self.other.push(source_char);
         self.cache[0] = self.other.len() as u32;
@@ -42,12 +45,15 @@ impl IncrementalLevenshtein {
         for y in 1..self.source.len()+1 {
             let olddiag = self.cache[y];
             self.cache[y] = min3(
-                self.cache[y] + 1, //TODO: should be one for a base algoritm
+                self.cache[y] + match self.goal {
+                    LevenshteinGoal::Distance => 1,
+                    LevenshteinGoal::Position => 1,
+                },
                 self.cache[y-1] + match self.goal {
                     LevenshteinGoal::Distance => 1,
                     LevenshteinGoal::Position => 0
-                }, //same as upper, upper is currently valid
-                lastdiag + delta(self.source[y-1], self.other[self.other.len()-1])
+                },
+                lastdiag + delta(self.source[y-1], self.other[self.other.len()-1], self.goal)
             );
             lastdiag = olddiag;
         };
@@ -206,7 +212,7 @@ mod tests {
 
         // test that pop work as expected
         println!("starting long pop test");
-        let mut test_text = "Hello world this is a long tex";
+        let test_text = "Hello world this is a long tex";
         let mut inc = DistanceIncremental::new(test_text);
         let mut test_score_at = vec![];
         for chara in test_text.chars() {

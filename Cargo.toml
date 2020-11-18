@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy.git", rev="7628f4a64e6f3eacfc4aad3bb6b3d54309722682" }
+log = "0.4.11"
+env_logger = "0.8.1"
+#TODO: use bevy_log

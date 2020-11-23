@@ -1,9 +1,7 @@
-#[macro_use]
 extern crate log;
 
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
-    log::LogPlugin,
     prelude::*,
     window::ReceivedCharacter,
 };
@@ -55,6 +53,7 @@ fn main() {
         .add_resource(OngoingMusic(None))
         .add_resource(Fonts::default())
         .add_resource(OngoingMusicDisplaySetting::default())
+        .add_resource(OngoingMusicDisplayData::default())
         .add_startup_system(debug_spawn_ongoing_music.system())
         .add_system(print_char_event_system.system())
         .add_system(debug_log.system())
@@ -169,13 +168,28 @@ impl Default for OngoingMusicDisplaySetting {
     }
 }
 
+struct OngoingMusicDisplayData {
+    actual_y_coordinate: f32,
+}
+
+impl Default for OngoingMusicDisplayData {
+    fn default() -> Self {
+        Self {
+            actual_y_coordinate: 0.0,
+        }
+    }
+}
+
 //TODO: only update what is required (put into multiple system and add an event ?)
 fn move_music_text_system(
     ongoing_music: Res<OngoingMusic>,
     ongoing_music_setting: Res<OngoingMusicDisplaySetting>,
+    mut ongoing_music_data: ResMut<OngoingMusicDisplayData>,
     mut query: Query<(&MusicDisplayedLine, &mut Style, &mut Text, &mut Draw)>,
 ) {
     if let Some(playing_music) = &(*ongoing_music).0 {
+        let target_y_coordinate = ongoing_music_setting.current_y;
+        ongoing_music_data.actual_y_coordinate = target_y_coordinate;
         let actual_line = playing_music.position_in_source_lines();
         for (MusicDisplayedLine(line_count), mut style, mut text, mut draw) in query.iter_mut() {
             let difference_isize: isize = *line_count as isize - actual_line as isize;
@@ -194,7 +208,7 @@ fn move_music_text_system(
             };
             style.position.top = Val::Px(
                 difference_f32 * ongoing_music_setting.distance_between_line
-                    + ongoing_music_setting.current_y,
+                    + ongoing_music_data.actual_y_coordinate,
             );
         }
     }

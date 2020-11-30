@@ -55,13 +55,16 @@ fn main() {
         .add_resource(OngoingMusicDisplaySetting::default())
         .add_resource(OngoingMusicDisplayData::default())
         .add_startup_system(debug_spawn_ongoing_music.system())
-        .add_system(print_char_event_system.system())
+        .add_system(ongoing_music_input_system.system())
         .add_system(debug_log.system())
         .add_system(move_music_text_system.system())
+        .add_system(update_typed_text.system())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(PrintDiagnosticsPlugin::default())
         .run();
 }
+
+struct OngoingMusicDisplayMarker;
 
 fn debug_spawn_ongoing_music(
     commands: &mut Commands,
@@ -71,13 +74,41 @@ fn debug_spawn_ongoing_music(
 ) {
     commands.spawn(UiCameraBundle::default());
     fonts.ongoing_music_font = Some(asset_server.load("fonts/FiraSans-Bold.ttf"));
+    fonts.ongoing_music_font_size = 64.0;
     ongoing_music.0 = Some(PlayingMusic::new(TEST_SONG.to_string()));
     ongoing_music.spawn_text(commands, &*fonts);
+    commands
+        .spawn(TextBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    right: Val::Percent(50.0),
+
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            text: Text {
+                value: "".into(),
+                font: fonts
+                    .ongoing_music_font
+                    .clone()
+                    .expect("tried to use unitialized music font"),
+                style: TextStyle {
+                    font_size: fonts.ongoing_music_font_size,
+                    color: Color::YELLOW,
+                    ..Default::default()
+                },
+            },
+            ..Default::default()
+        })
+        .with(OngoingMusicDisplayMarker);
 }
 
 #[derive(Default)]
 struct Fonts {
     ongoing_music_font: Option<Handle<Font>>,
+    ongoing_music_font_size: f32,
 }
 
 struct OngoingMusic(Option<PlayingMusic>);
@@ -121,7 +152,7 @@ struct State {
     event_reader: EventReader<ReceivedCharacter>,
 }
 
-fn print_char_event_system(
+fn ongoing_music_input_system(
     mut ongoing_music: ResMut<OngoingMusic>,
     mut state: Local<State>,
     char_input_events: Res<Events<ReceivedCharacter>>,
@@ -200,6 +231,7 @@ fn move_music_text_system(
                 continue;
             };
             draw.is_visible = true;
+            let yet_to_be_typed = difference_isize >= 0;
             let difference_f32 = difference_isize as f32;
             if *line_count == actual_line {
                 text.style.color = ongoing_music_setting.current_color;
@@ -207,9 +239,25 @@ fn move_music_text_system(
                 text.style.color = ongoing_music_setting.non_current_color;
             };
             style.position.top = Val::Px(
-                difference_f32 * ongoing_music_setting.distance_between_line
+                (difference_f32 + if yet_to_be_typed { 1.0 } else { 0.0 })
+                    * ongoing_music_setting.distance_between_line
                     + ongoing_music_data.actual_y_coordinate,
             );
+        }
+    }
+}
+
+fn update_typed_text(
+    ongoing_music: ChangedRes<OngoingMusic>,
+    ongoing_music_setting: Res<OngoingMusicDisplaySetting>,
+    mut query: Query<(&mut Text, &mut Style), With<OngoingMusicDisplayMarker>>,
+) {
+    if let Some(ongoing_music) = &ongoing_music.0 {
+        for (mut text, mut style) in query.iter_mut() {
+            let num_char_to_keep = 50;
+            let mut typed_text = ongoing_music.get_typed_text().to_string();
+            style.position.top = Val::Px(ongoing_music_setting.current_y);
+            text.value = typed_text.split_off(typed_text.len().saturating_sub(num_char_to_keep));
         }
     }
 }
